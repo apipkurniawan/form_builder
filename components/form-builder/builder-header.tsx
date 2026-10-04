@@ -1,8 +1,10 @@
 import Link from "next/link";
+import type { StorageStatus } from "@/lib/workspace-repository";
 import { Icon } from "./icon";
 
 type Props = {
   formTitle: string;
+  storageStatus: StorageStatus | null;
   preview: boolean;
   onSave: () => void;
   onExport: () => void;
@@ -12,7 +14,14 @@ type Props = {
 const secondaryButton =
   "flex h-9 items-center justify-center gap-2 rounded-lg border border-[#e6eae5] bg-white px-3.5 text-xs font-bold text-[#424a42] hover:bg-[#f6f8f5]";
 
-export function BuilderHeader({ formTitle, preview, onSave, onExport, onTogglePreview }: Props) {
+export function BuilderHeader({
+  formTitle,
+  storageStatus,
+  preview,
+  onSave,
+  onExport,
+  onTogglePreview,
+}: Props) {
   return (
     <header className="relative z-10 flex h-[73px] items-center gap-6 border-b border-[#e9ece7] bg-white px-4 md:px-7">
       <Link
@@ -45,7 +54,10 @@ export function BuilderHeader({ formTitle, preview, onSave, onExport, onTogglePr
       </div>
       <div className="ml-auto flex items-center gap-2">
         <span className="mr-3 hidden items-center gap-2 whitespace-nowrap text-xs text-[#8b938b] xl:flex">
-          <span className="size-2 rounded-full bg-[#6caf7e]" /> Tersimpan otomatis
+          <span
+            className={`size-2 rounded-full ${storageStatus?.mode === "supabase" ? "bg-[#6caf7e]" : "bg-[#e5aa58]"}`}
+          />
+          {storageStatus?.mode === "supabase" ? "Supabase aktif" : "Mode lokal"}
         </span>
         <button type="button" className={secondaryButton} onClick={onExport} title="Unduh JSON">
           <Icon name="download" size={17} /> <span className="hidden sm:inline">Ekspor</span>

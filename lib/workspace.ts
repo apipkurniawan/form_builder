@@ -9,6 +9,57 @@ export type WorkspaceForm = {
 };
 
 const WORKSPACE_KEY = "formcraft-workspace-v1";
+const PENDING_KEY = "formcraft-pending-sync-v1";
+
+export type PendingSync = {
+  upserts: Record<string, string>;
+  deletes: Record<string, string>;
+};
+
+export function getPendingSync(): PendingSync {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(PENDING_KEY) || "null");
+    if (
+      value &&
+      typeof value === "object" &&
+      "upserts" in value &&
+      "deletes" in value &&
+      value.upserts &&
+      typeof value.upserts === "object" &&
+      value.deletes &&
+      typeof value.deletes === "object"
+    ) {
+      return value as PendingSync;
+    }
+  } catch {
+    // Ignore invalid sync metadata.
+  }
+  return { upserts: {}, deletes: {} };
+}
+
+function markPending(id: string, operation: "upsert" | "delete") {
+  const pending = getPendingSync();
+  const version = crypto.randomUUID();
+  if (operation === "upsert") {
+    pending.upserts[id] = version;
+    delete pending.deletes[id];
+  } else {
+    pending.deletes[id] = version;
+    delete pending.upserts[id];
+  }
+  localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+}
+
+export function clearPendingSync(snapshot: PendingSync) {
+  const pending = getPendingSync();
+  for (const [id, version] of Object.entries(snapshot.upserts)) {
+    if (pending.upserts[id] === version) delete pending.upserts[id];
+  }
+  for (const [id, version] of Object.entries(snapshot.deletes)) {
+    if (pending.deletes[id] === version) delete pending.deletes[id];
+  }
+  localStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+}
 
 function isWorkspaceForm(value: unknown): value is WorkspaceForm {
   if (typeof value !== "object" || value === null) return false;
@@ -27,7 +78,11 @@ function writeWorkspace(forms: WorkspaceForm[]) {
   localStorage.setItem(WORKSPACE_KEY, JSON.stringify(forms));
 }
 
-export function getWorkspaceForms(): WorkspaceForm[] {
+export function replaceLocalWorkspace(forms: WorkspaceForm[]) {
+  writeWorkspace(forms);
+}
+
+export function peekWorkspaceForms(): WorkspaceForm[] | null {
   try {
     const stored = localStorage.getItem(WORKSPACE_KEY);
     if (stored) {
@@ -37,6 +92,12 @@ export function getWorkspaceForms(): WorkspaceForm[] {
   } catch {
     // Start a fresh workspace if a previous value is invalid.
   }
+  return null;
+}
+
+export function getWorkspaceForms(): WorkspaceForm[] {
+  const stored = peekWorkspaceForms();
+  if (stored) return stored;
 
   const now = new Date().toISOString();
   const firstForm: WorkspaceForm = {
@@ -62,6 +123,7 @@ export function createWorkspaceForm(): WorkspaceForm {
     updatedAt: now,
   };
   writeWorkspace([item, ...getWorkspaceForms()]);
+  markPending(item.id, "upsert");
   return item;
 }
 
@@ -73,6 +135,7 @@ export function saveWorkspaceForm(id: string, form: FormState) {
       item.id === id ? { ...item, form, updatedAt: new Date().toISOString() } : item,
     ),
   );
+  markPending(id, "upsert");
 }
 
 export function duplicateWorkspaceForm(id: string): WorkspaceForm | null {
@@ -95,9 +158,11 @@ export function duplicateWorkspaceForm(id: string): WorkspaceForm | null {
     updatedAt: now,
   };
   writeWorkspace([duplicate, ...forms]);
+  markPending(duplicate.id, "upsert");
   return duplicate;
 }
 
 export function deleteWorkspaceForm(id: string) {
   writeWorkspace(getWorkspaceForms().filter((item) => item.id !== id));
+  markPending(id, "delete");
 }

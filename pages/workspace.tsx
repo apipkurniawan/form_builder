@@ -10,6 +10,8 @@ import {
   getWorkspaceForms,
 } from "@/lib/workspace";
 import type { WorkspaceForm } from "@/lib/workspace";
+import { loadWorkspaceForms, syncWorkspace } from "@/lib/workspace-repository";
+import type { StorageStatus } from "@/lib/workspace-repository";
 
 type SortOrder = "latest" | "oldest" | "name";
 
@@ -87,15 +89,24 @@ export default function WorkspacePage() {
   const router = useRouter();
   const [forms, setForms] = useState<WorkspaceForm[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOrder>("latest");
 
   useEffect(() => {
+    let cancelled = false;
     const timer = window.setTimeout(() => {
-      setForms(getWorkspaceForms());
-      setLoaded(true);
+      void loadWorkspaceForms().then(({ forms: saved, status }) => {
+        if (cancelled) return;
+        setForms(saved);
+        setStorageStatus(status);
+        setLoaded(true);
+      });
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   const visibleForms = useMemo(() => {
@@ -113,12 +124,14 @@ export default function WorkspacePage() {
 
   function createForm() {
     const item = createWorkspaceForm();
+    void syncWorkspace();
     void router.push(`/forms/${item.id}`);
   }
 
   function duplicateForm(id: string) {
     duplicateWorkspaceForm(id);
     setForms(getWorkspaceForms());
+    void syncWorkspace().then(setStorageStatus);
   }
 
   function deleteForm(id: string) {
@@ -126,6 +139,7 @@ export default function WorkspacePage() {
     if (!item || !window.confirm(`Hapus "${item.form.title || "Formulir tanpa judul"}"?`)) return;
     deleteWorkspaceForm(id);
     setForms(getWorkspaceForms());
+    void syncWorkspace().then(setStorageStatus);
   }
 
   const totalFields = forms.reduce((sum, item) => sum + item.form.fields.length, 0);
@@ -173,6 +187,7 @@ export default function WorkspacePage() {
             <button
               type="button"
               onClick={createForm}
+              disabled={!loaded}
               className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-xs font-semibold text-[#69796b] hover:bg-[#f5f8f3]"
             >
               <Icon name="plus" size={17} /> Buat formulir
@@ -204,6 +219,7 @@ export default function WorkspacePage() {
                 <button
                   type="button"
                   onClick={createForm}
+                  disabled={!loaded}
                   className="flex h-10 items-center gap-2 rounded-lg bg-[#176443] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#104e34]"
                 >
                   <Icon name="plus" size={18} /> Formulir baru
@@ -312,7 +328,7 @@ export default function WorkspacePage() {
                 )}
               </section>
               <p className="mt-5 text-center text-[11px] text-[#a0aaa0]">
-                Formulir tersimpan otomatis di browser ini.
+                {storageStatus?.message || "Memeriksa penyimpanan..."}
               </p>
             </div>
           </main>

@@ -79,11 +79,17 @@ export default function FormEditor() {
       <div className="min-h-screen bg-[#f7f8f5] font-sans text-[#202321]">
         <BuilderHeader
           formTitle={builder.form.title}
+          storageStatus={builder.storageStatus}
           preview={preview}
           onSave={save}
           onExport={exportJson}
           onTogglePreview={() => setPreview((current) => !current)}
         />
+        {builder.storageStatus?.mode === "local" && (
+          <div className="border-b border-[#eadfcb] bg-[#fff8ec] px-5 py-2 text-center text-[11px] text-[#8b6b37]">
+            {builder.storageStatus.message}
+          </div>
+        )}
         {preview ? (
           <FormPreview form={builder.form} />
         ) : (

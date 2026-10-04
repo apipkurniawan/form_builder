@@ -1,38 +1,52 @@
 import { useEffect, useRef, useState } from "react";
 import { createField, INITIAL_FORM, moveField } from "@/lib/form-builder";
 import type { Field, FieldType, FormState } from "@/lib/form-builder";
-import { getWorkspaceForm, saveWorkspaceForm } from "@/lib/workspace";
+import { saveWorkspaceForm } from "@/lib/workspace";
+import { loadWorkspaceForm, syncWorkspace } from "@/lib/workspace-repository";
+import type { StorageStatus } from "@/lib/workspace-repository";
 
 export function useFormBuilder(formId: string | null) {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [selectedId, setSelectedId] = useState<string | null>("name");
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const lastSavedForm = useRef<FormState | null>(null);
   const selectedField = form.fields.find((field) => field.id === selectedId) ?? null;
 
   useEffect(() => {
     if (!formId) return;
+    let cancelled = false;
     const timer = window.setTimeout(() => {
-      const saved = getWorkspaceForm(formId);
-      if (saved) {
-        lastSavedForm.current = saved.form;
-        setForm(saved.form);
-        setSelectedId(saved.form.fields[0]?.id ?? null);
-        setLoadedId(formId);
-        setMissing(false);
-      } else {
-        setLoadedId(null);
-        setMissing(true);
-      }
+      void loadWorkspaceForm(formId).then(({ form: saved, status }) => {
+        if (cancelled) return;
+        setStorageStatus(status);
+        if (saved) {
+          lastSavedForm.current = saved.form;
+          setForm(saved.form);
+          setSelectedId(saved.form.fields[0]?.id ?? null);
+          setLoadedId(formId);
+          setMissing(false);
+        } else {
+          setLoadedId(null);
+          setMissing(true);
+        }
+      });
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [formId]);
 
   useEffect(() => {
     if (formId && loadedId === formId && lastSavedForm.current !== form) {
       saveWorkspaceForm(formId, form);
       lastSavedForm.current = form;
+      const timer = window.setTimeout(() => {
+        void syncWorkspace().then(setStorageStatus);
+      }, 600);
+      return () => window.clearTimeout(timer);
     }
   }, [form, formId, loadedId]);
 
@@ -90,6 +104,7 @@ export function useFormBuilder(formId: string | null) {
     if (formId && loadedId === formId) {
       saveWorkspaceForm(formId, form);
       lastSavedForm.current = form;
+      void syncWorkspace().then(setStorageStatus);
     }
   }
 
@@ -109,6 +124,7 @@ export function useFormBuilder(formId: string | null) {
     form,
     ready: Boolean(formId && loadedId === formId),
     missing,
+    storageStatus,
     selectedField,
     setSelectedId,
     updateForm,
