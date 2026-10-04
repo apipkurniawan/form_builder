@@ -1,34 +1,40 @@
-import { useEffect, useState } from "react";
-import {
-  createField,
-  INITIAL_FORM,
-  moveField,
-  readSavedForm,
-  STORAGE_KEY,
-} from "@/lib/form-builder";
+import { useEffect, useRef, useState } from "react";
+import { createField, INITIAL_FORM, moveField } from "@/lib/form-builder";
 import type { Field, FieldType, FormState } from "@/lib/form-builder";
+import { getWorkspaceForm, saveWorkspaceForm } from "@/lib/workspace";
 
-export function useFormBuilder() {
+export function useFormBuilder(formId: string | null) {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [selectedId, setSelectedId] = useState<string | null>("name");
-  const [hydrated, setHydrated] = useState(false);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+  const lastSavedForm = useRef<FormState | null>(null);
   const selectedField = form.fields.find((field) => field.id === selectedId) ?? null;
 
   useEffect(() => {
+    if (!formId) return;
     const timer = window.setTimeout(() => {
-      const saved = readSavedForm();
+      const saved = getWorkspaceForm(formId);
       if (saved) {
-        setForm(saved);
-        setSelectedId(saved.fields[0]?.id ?? null);
+        lastSavedForm.current = saved.form;
+        setForm(saved.form);
+        setSelectedId(saved.form.fields[0]?.id ?? null);
+        setLoadedId(formId);
+        setMissing(false);
+      } else {
+        setLoadedId(null);
+        setMissing(true);
       }
-      setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [formId]);
 
   useEffect(() => {
-    if (hydrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
-  }, [form, hydrated]);
+    if (formId && loadedId === formId && lastSavedForm.current !== form) {
+      saveWorkspaceForm(formId, form);
+      lastSavedForm.current = form;
+    }
+  }, [form, formId, loadedId]);
 
   function updateForm(changes: Partial<Pick<FormState, "title" | "description">>) {
     setForm((current) => ({ ...current, ...changes }));
@@ -81,7 +87,10 @@ export function useFormBuilder() {
   }
 
   function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(form));
+    if (formId && loadedId === formId) {
+      saveWorkspaceForm(formId, form);
+      lastSavedForm.current = form;
+    }
   }
 
   function exportJson() {
@@ -98,6 +107,8 @@ export function useFormBuilder() {
 
   return {
     form,
+    ready: Boolean(formId && loadedId === formId),
+    missing,
     selectedField,
     setSelectedId,
     updateForm,

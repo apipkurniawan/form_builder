@@ -18,11 +18,18 @@ export type IconName =
   | "copy"
   | "trash"
   | "arrow"
+  | "search"
   | "settings"
   | "spark"
   | "undo";
 
 const iconPaths: Record<IconName, ReactNode> = {
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m16 16 5 5" />
+    </>
+  ),
   grid: (
     <>
       <rect x="3" y="3" width="7" height="7" rx="1.5" />
