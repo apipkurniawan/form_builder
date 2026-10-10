@@ -10,6 +10,28 @@ export type WorkspaceForm = {
 
 const WORKSPACE_KEY = "formcraft-workspace-v1";
 const PENDING_KEY = "formcraft-pending-sync-v1";
+const WORKSPACE_NAME_KEY = "formcraft-workspace-name-v1";
+const PENDING_NAME_KEY = "formcraft-pending-name-v1";
+export const DEFAULT_WORKSPACE_NAME = "Workspace";
+
+export function getWorkspaceName(): string {
+  return localStorage.getItem(WORKSPACE_NAME_KEY)?.trim() || DEFAULT_WORKSPACE_NAME;
+}
+
+export function setWorkspaceName(name: string, pending = true) {
+  localStorage.setItem(WORKSPACE_NAME_KEY, name);
+  if (pending) localStorage.setItem(PENDING_NAME_KEY, crypto.randomUUID());
+}
+
+export function getPendingWorkspaceName(): string | null {
+  return localStorage.getItem(PENDING_NAME_KEY);
+}
+
+export function clearPendingWorkspaceName(version: string) {
+  if (localStorage.getItem(PENDING_NAME_KEY) === version) {
+    localStorage.removeItem(PENDING_NAME_KEY);
+  }
+}
 
 export type PendingSync = {
   upserts: Record<string, string>;

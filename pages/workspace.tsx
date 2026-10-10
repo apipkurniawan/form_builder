@@ -2,15 +2,23 @@ import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { Icon } from "@/components/form-builder/icon";
 import {
   createWorkspaceForm,
+  DEFAULT_WORKSPACE_NAME,
   deleteWorkspaceForm,
   duplicateWorkspaceForm,
   getWorkspaceForms,
+  setWorkspaceName,
 } from "@/lib/workspace";
 import type { WorkspaceForm } from "@/lib/workspace";
-import { loadWorkspaceForms, syncWorkspace } from "@/lib/workspace-repository";
+import {
+  loadWorkspaceForms,
+  loadWorkspaceName,
+  syncWorkspace,
+  syncWorkspaceName,
+} from "@/lib/workspace-repository";
 import type { StorageStatus } from "@/lib/workspace-repository";
 
 type SortOrder = "latest" | "oldest" | "name";
@@ -92,16 +100,23 @@ export default function WorkspacePage() {
   const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortOrder>("latest");
+  const [workspaceName, setName] = useState(DEFAULT_WORKSPACE_NAME);
+  const [nameDraft, setNameDraft] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [nameError, setNameError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      void loadWorkspaceForms().then(({ forms: saved, status }) => {
-        if (cancelled) return;
-        setForms(saved);
-        setStorageStatus(status);
-        setLoaded(true);
-      });
+      void Promise.all([loadWorkspaceForms(), loadWorkspaceName()]).then(
+        ([{ forms: saved, status }, name]) => {
+          if (cancelled) return;
+          setForms(saved);
+          setStorageStatus(status);
+          setName(name);
+          setLoaded(true);
+        },
+      );
     }, 0);
     return () => {
       cancelled = true;
@@ -142,12 +157,28 @@ export default function WorkspacePage() {
     void syncWorkspace().then(setStorageStatus);
   }
 
+  function saveName(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = nameDraft.trim();
+    if (!name) {
+      setNameError("Nama workspace tidak boleh kosong.");
+      return;
+    }
+    if (name !== workspaceName) {
+      setWorkspaceName(name);
+      setName(name);
+      void syncWorkspaceName();
+    }
+    setEditingName(false);
+    setNameError("");
+  }
+
   const totalFields = forms.reduce((sum, item) => sum + item.form.fields.length, 0);
 
   return (
     <>
       <Head>
-        <title>Workspace — Formcraft</title>
+        <title>{workspaceName} — Formcraft</title>
         <meta name="description" content="Kelola semua formulir Anda dalam satu workspace." />
       </Head>
       <div className="min-h-screen bg-[#f8f9f6] font-sans text-[#202b22]">
@@ -167,16 +198,18 @@ export default function WorkspacePage() {
             </span>
           </Link>
           <div className="flex items-center gap-3">
-            <span className="hidden text-xs text-[#91a093] sm:inline">Ruang kerja Anda</span>
+            <span className="hidden max-w-40 truncate text-xs text-[#91a093] sm:inline">
+              {workspaceName}
+            </span>
             <span className="grid size-9 place-items-center rounded-full bg-[#eaf3e8] text-xs font-bold text-[#2c764a]">
-              W
+              {workspaceName.charAt(0).toLocaleUpperCase("id-ID")}
             </span>
           </div>
         </header>
         <div className="mx-auto max-w-[1440px] md:grid md:min-h-[calc(100vh-73px)] md:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="hidden border-r border-[#e9ece7] bg-white px-4 py-8 md:block">
             <p className="mb-4 px-3 text-[10px] font-extrabold tracking-[.14em] text-[#9baa9b]">
-              WORKSPACE
+              {workspaceName.toLocaleUpperCase("id-ID")}
             </p>
             <div className="flex items-center gap-3 rounded-lg bg-[#eaf3e8] px-3 py-3 text-xs font-bold text-[#1e6842]">
               <Icon name="grid" size={17} /> Semua formulir
@@ -209,9 +242,65 @@ export default function WorkspacePage() {
                   <span className="text-[10px] font-extrabold tracking-[.14em] text-[#6e9b78]">
                     RUANG KERJA
                   </span>
-                  <h1 className="mt-2 text-[27px] font-bold tracking-tight sm:text-[31px]">
-                    Workspace
-                  </h1>
+                  {editingName ? (
+                    <form onSubmit={saveName} className="mt-2 flex flex-wrap items-center gap-2">
+                      <input
+                        autoFocus
+                        aria-label="Nama workspace"
+                        value={nameDraft}
+                        maxLength={60}
+                        onChange={(event) => {
+                          setNameDraft(event.target.value);
+                          setNameError("");
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            setEditingName(false);
+                            setNameError("");
+                          }
+                        }}
+                        className="h-10 min-w-0 max-w-full rounded-lg border border-[#87b891] bg-white px-3 text-xl font-bold outline-none focus:ring-2 focus:ring-[#e6f3e5]"
+                      />
+                      <button
+                        type="submit"
+                        className="h-10 rounded-lg bg-[#176443] px-3 text-xs font-bold text-white"
+                      >
+                        Simpan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingName(false);
+                          setNameError("");
+                        }}
+                        className="h-10 rounded-lg px-3 text-xs font-bold text-[#657365] hover:bg-[#edf0eb]"
+                      >
+                        Batal
+                      </button>
+                      {nameError && (
+                        <p role="alert" className="w-full text-xs text-[#bd5148]">
+                          {nameError}
+                        </p>
+                      )}
+                    </form>
+                  ) : (
+                    <div className="mt-2 flex min-w-0 items-center gap-2">
+                      <h1 className="min-w-0 truncate text-[27px] font-bold tracking-tight sm:text-[31px]">
+                        {workspaceName}
+                      </h1>
+                      <button
+                        type="button"
+                        disabled={!loaded}
+                        onClick={() => {
+                          setNameDraft(workspaceName);
+                          setEditingName(true);
+                        }}
+                        className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-[#347b50] hover:bg-[#eaf3e8] disabled:opacity-50"
+                      >
+                        Ubah nama
+                      </button>
+                    </div>
+                  )}
                   <p className="mt-1.5 text-xs text-[#8d9a8e] sm:text-sm">
                     Semua formulir Anda, tersusun dalam satu tempat.
                   </p>
@@ -231,7 +320,7 @@ export default function WorkspacePage() {
                 <div className="relative flex flex-wrap items-center justify-between gap-6">
                   <div>
                     <span className="text-[10px] font-bold tracking-[.13em] text-[#a8d3b2]">
-                      RINGKASAN WORKSPACE
+                      RINGKASAN {workspaceName.toLocaleUpperCase("id-ID")}
                     </span>
                     <h2 className="mt-2 text-lg font-bold">Formulir siap Anda kelola</h2>
                     <p className="mt-1 text-xs text-[#b9d9c1]">
@@ -255,7 +344,7 @@ export default function WorkspacePage() {
                   <div>
                     <h2 className="text-base font-bold">Semua formulir</h2>
                     <p className="mt-1 text-[11px] text-[#99a39a]">
-                      {forms.length} formulir dalam workspace Anda
+                      {forms.length} formulir dalam {workspaceName}
                     </p>
                   </div>
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto">

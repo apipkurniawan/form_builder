@@ -3,10 +3,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { readSavedForm } from "./form-builder";
 import {
   clearPendingSync,
+  clearPendingWorkspaceName,
+  getPendingWorkspaceName,
   getPendingSync,
+  getWorkspaceName,
   getWorkspaceForms,
   peekWorkspaceForms,
   replaceLocalWorkspace,
+  setWorkspaceName,
 } from "./workspace";
 import type { WorkspaceForm } from "./workspace";
 
@@ -174,6 +178,49 @@ export function syncWorkspace(): Promise<StorageStatus> {
     }
   });
   return syncQueue;
+}
+
+export async function loadWorkspaceName(): Promise<string> {
+  const localName = getWorkspaceName();
+  const context = await connect();
+  if (!context) return localName;
+  try {
+    const pending = getPendingWorkspaceName();
+    if (pending) {
+      const { error } = await withTimeout(
+        context.client.auth.updateUser({ data: { workspace_name: localName } }),
+      );
+      if (error) throw error;
+      clearPendingWorkspaceName(pending);
+      return localName;
+    }
+    const { data, error } = await withTimeout(context.client.auth.getUser());
+    if (error) throw error;
+    const remoteName = data.user?.user_metadata?.workspace_name;
+    if (typeof remoteName === "string" && remoteName.trim()) {
+      setWorkspaceName(remoteName.trim(), false);
+      return remoteName.trim();
+    }
+  } catch {
+    // Keep the local name if account metadata cannot be reached.
+  }
+  return localName;
+}
+
+export async function syncWorkspaceName(): Promise<void> {
+  const pending = getPendingWorkspaceName();
+  if (!pending) return;
+  const context = await connect();
+  if (!context) return;
+  try {
+    const { error } = await withTimeout(
+      context.client.auth.updateUser({ data: { workspace_name: getWorkspaceName() } }),
+    );
+    if (error) throw error;
+    clearPendingWorkspaceName(pending);
+  } catch {
+    // Retry on the next workspace load.
+  }
 }
 
 export async function loadWorkspaceForms(): Promise<{

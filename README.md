@@ -24,6 +24,7 @@ Jika kredensial belum diisi, anonymous sign-in belum aktif, tabel belum dibuat, 
 
 ## Fitur
 
+- Nama workspace dapat diubah di `/workspace`; nama disimpan di browser dan disinkronkan ke metadata akun Supabase saat terhubung.
 - Daftar workspace di `/workspace` dengan pencarian, pengurutan, buat, duplikat, dan hapus formulir.
 - Setiap formulir memiliki editor sendiri di `/forms/[id]`.
 - Tambah field dengan drag and drop atau klik komponen.

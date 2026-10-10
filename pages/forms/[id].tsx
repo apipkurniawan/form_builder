@@ -10,6 +10,7 @@ import { FormPreview } from "@/components/form-builder/form-preview";
 import { Icon } from "@/components/form-builder/icon";
 import { useFormBuilder } from "@/hooks/use-form-builder";
 import type { FieldType } from "@/lib/form-builder";
+import { DEFAULT_WORKSPACE_NAME, getWorkspaceName } from "@/lib/workspace";
 
 type MobilePanel = "fields" | "canvas" | "settings";
 
@@ -20,6 +21,12 @@ export default function FormEditor() {
   const [preview, setPreview] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("canvas");
   const [toast, setToast] = useState("");
+  const [workspaceName, setWorkspaceName] = useState(DEFAULT_WORKSPACE_NAME);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setWorkspaceName(getWorkspaceName()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -79,6 +86,7 @@ export default function FormEditor() {
       <div className="min-h-screen bg-[#f7f8f5] font-sans text-[#202321]">
         <BuilderHeader
           formTitle={builder.form.title}
+          workspaceName={workspaceName}
           storageStatus={builder.storageStatus}
           preview={preview}
           onSave={save}

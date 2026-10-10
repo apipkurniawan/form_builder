@@ -4,6 +4,7 @@ import { Icon } from "./icon";
 
 type Props = {
   formTitle: string;
+  workspaceName: string;
   storageStatus: StorageStatus | null;
   preview: boolean;
   onSave: () => void;
@@ -16,6 +17,7 @@ const secondaryButton =
 
 export function BuilderHeader({
   formTitle,
+  workspaceName,
   storageStatus,
   preview,
   onSave,
@@ -42,7 +44,7 @@ export function BuilderHeader({
       <span className="hidden h-7 w-px bg-[#e5e8e3] md:block" />
       <div className="hidden items-center gap-3 text-[13px] text-[#939993] md:flex">
         <Link href="/workspace" onClick={onSave} className="hover:text-[#176443]">
-          Workspace
+          {workspaceName}
         </Link>
         <span className="text-[#c9ceca]">/</span>
         <strong className="max-w-40 truncate font-semibold text-[#404741]">
