@@ -32,11 +32,31 @@ export function BuilderCanvas({
 }: Props) {
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 
-  function handleDrop(event: DragEvent, index: number) {
+  function getDropIndex(event: DragEvent<HTMLElement>): number {
+    const rows = event.currentTarget.querySelectorAll<HTMLElement>("[data-field-id]");
+    for (const [index, row] of rows.entries()) {
+      const bounds = row.getBoundingClientRect();
+      if (event.clientY < bounds.top + bounds.height / 2) return index;
+    }
+    return rows.length;
+  }
+
+  function isFieldDrag(event: DragEvent<HTMLElement>): boolean {
+    return (
+      event.dataTransfer.types.includes("application/formcraft-id") ||
+      event.dataTransfer.types.includes("application/formcraft-type")
+    );
+  }
+
+  function handleDrop(event: DragEvent<HTMLElement>) {
+    if (!isFieldDrag(event)) return;
     event.preventDefault();
+    const index = getDropIndex(event);
     setDropIndex(null);
     const id = event.dataTransfer.getData("application/formcraft-id");
-    const type = event.dataTransfer.getData("application/formcraft-type");
+    const type =
+      event.dataTransfer.getData("application/formcraft-type") ||
+      event.dataTransfer.getData("text/plain");
     if (id) onReorder(id, index);
     else if (isFieldType(type)) onAdd(type, index);
   }
@@ -44,15 +64,7 @@ export function BuilderCanvas({
   function dropZone(index: number) {
     const active = dropIndex === index;
     return (
-      <div
-        className={`relative grid place-items-center transition-all ${active ? "h-10" : "h-4"}`}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDropIndex(index);
-        }}
-        onDragLeave={() => setDropIndex((current) => (current === index ? null : current))}
-        onDrop={(event) => handleDrop(event, index)}
-      >
+      <div className="pointer-events-none relative grid h-4 place-items-center">
         <span
           className={`absolute right-2 left-2 border-t-2 border-dashed ${active ? "border-[#8dbd93]" : "border-transparent"}`}
         />
@@ -86,7 +98,26 @@ export function BuilderCanvas({
         </span>
       </div>
       <div className="mx-auto max-w-[745px]">
-        <div className="overflow-hidden rounded-xl border border-[#e7ebe5] bg-white shadow-[0_13px_40px_rgba(37,57,34,.045)]">
+        <div
+          className="overflow-hidden rounded-xl border border-[#e7ebe5] bg-white shadow-[0_13px_40px_rgba(37,57,34,.045)]"
+          onDragOver={(event) => {
+            if (!isFieldDrag(event)) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = event.dataTransfer.types.includes(
+              "application/formcraft-id",
+            )
+              ? "move"
+              : "copy";
+            const index = getDropIndex(event);
+            setDropIndex((current) => (current === index ? current : index));
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+              setDropIndex(null);
+            }
+          }}
+          onDrop={handleDrop}
+        >
           <div className="h-[7px] bg-gradient-to-r from-[#286e4a] via-[#72aa75] to-[#d2e6b4]" />
           <div className="border-b border-[#f1f2ef] px-6 pt-7 pb-5 md:px-10 md:pt-9">
             <span className="text-[10px] font-extrabold tracking-[.14em] text-[#78a381]">
@@ -124,25 +155,12 @@ export function BuilderCanvas({
             {form.fields.map((field, index) => (
               <div key={field.id}>
                 <div
+                  data-field-id={field.id}
                   draggable
                   onClick={() => onSelect(field.id)}
                   onDragStart={(event) => {
                     event.dataTransfer.setData("application/formcraft-id", field.id);
                     event.dataTransfer.effectAllowed = "move";
-                  }}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    const bounds = event.currentTarget.getBoundingClientRect();
-                    setDropIndex(
-                      event.clientY < bounds.top + bounds.height / 2 ? index : index + 1,
-                    );
-                  }}
-                  onDrop={(event) => {
-                    const bounds = event.currentTarget.getBoundingClientRect();
-                    handleDrop(
-                      event,
-                      event.clientY < bounds.top + bounds.height / 2 ? index : index + 1,
-                    );
                   }}
                   className={`group relative flex min-h-28 cursor-pointer gap-2 rounded-lg border bg-white py-5 pr-8 pl-2.5 transition md:gap-3 md:pr-9 md:pl-5 ${selectedId === field.id ? "border-[#92be9b] ring-[3px] ring-[#ebf5e9]" : "border-transparent hover:border-[#dce8dc]"}`}
                 >

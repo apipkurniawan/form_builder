@@ -11,6 +11,7 @@ type Props = {
 export function ComponentPalette({ visible, onAdd }: Props) {
   function startDrag(event: DragEvent<HTMLButtonElement>, type: FieldType) {
     event.dataTransfer.setData("application/formcraft-type", type);
+    event.dataTransfer.setData("text/plain", type);
     event.dataTransfer.effectAllowed = "copy";
   }
 
